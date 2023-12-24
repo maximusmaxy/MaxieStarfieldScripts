@@ -18,15 +18,6 @@
 #include "util.h"
 
 namespace cdb {
-	struct TestStruct {
-		std::set<uint32_t> objectSet;
-		std::set<uint32_t> componentSet;
-		std::set<uint32_t> edgeSet;
-		BSComponentDB2::ID matId;
-		BSResource::ID resourceId;
-		uint64_t hash;
-	};
-
 	struct Manager {
 		using Database = BSMaterial::Internal::CompiledDB;
 		using FileIndex = BSComponentDB2::DBFileIndex;
@@ -53,6 +44,7 @@ namespace cdb {
 		std::unordered_map<std::string, nlohmann::json> classJsons;
 		std::vector<uint32_t> posMap;
 		std::unordered_map<BSResource::ID, BSComponentDB2::ID> resourceToDb;
+        std::unordered_map<uint32_t, std::string> idToPath;
 
 		FileIndex::ObjectInfo emptyObject{ {0}, 0, 0, false };
 		const FileIndex::ObjectInfo& GetObject(const BSComponentDB2::ID id) const {
@@ -71,7 +63,6 @@ namespace cdb {
 				return type.first == typeId;
 			});
 			return it->second;
-			//return fileIndex.ComponentTypes.at(typeId);
 		};
 
 		uint16_t GetTypeIndex(const std::string& typeName) const {
@@ -130,7 +121,7 @@ namespace cdb {
 			}
 		};
 
-		nlohmann::json& GetIndexedComponent(nlohmann::json& objectValue, const nlohmann::json& dbValue, uint32_t index) {
+        nlohmann::json& GetIndexedComponent(nlohmann::json& objectValue, const nlohmann::json& dbValue, uint32_t index) const {
 			assert(dbValue.contains("Type"));
 			const std::string& dbTypeString = dbValue["Type"];
 
@@ -156,7 +147,7 @@ namespace cdb {
 			return emplaced;
 		};
 
-		void GetFullJson(const BSComponentDB2::ID id, nlohmann::json& objectValue) {
+        void GetFullJson(const BSComponentDB2::ID id, nlohmann::json& objectValue) const {
 			auto& componentsValue = objectValue["Components"];
 			componentsValue = nlohmann::json::array();
 
@@ -175,7 +166,7 @@ namespace cdb {
 			}
 		};
 
-		void GetDiffJson(const BSComponentDB2::ID id, nlohmann::json& objectValue) {
+        void GetDiffJson(const BSComponentDB2::ID id, nlohmann::json& objectValue) const {
 			auto& componentsValue = objectValue["Components"];
 			componentsValue = nlohmann::json::array();
 
@@ -206,7 +197,7 @@ namespace cdb {
 			return std::find(idTypes.begin(), idTypes.end(), componentValue["Type"]) != idTypes.end();
 		}
 
-		void GetReferencedIds(nlohmann::json& value, ObjectQueue& objectQueue) {
+        void GetReferencedIds(nlohmann::json& value, ObjectQueue& objectQueue) const {
 			if (IsComponentReference(value)) {
 				auto& dbValue = value["Data"]["ID"];
 				if (dbValue.is_string()) {
@@ -240,14 +231,14 @@ namespace cdb {
 			}
 		};
 
-		BSComponentDB2::ID GetMatId(const std::string& path) {
+        BSComponentDB2::ID GetMatId(const std::string& path) const {
 			auto matResourceId = GetResourceIdFromPath(path);
 			auto pathIt = resourceToDb.find(matResourceId);
 			return pathIt != resourceToDb.end() ? pathIt->second : BSComponentDB2::ID{ 0 };
 		};
 
 		void SetMaterialParent(nlohmann::json& matJson, const std::unordered_map<uint32_t, std::string>& matPathMap,
-			const BSComponentDB2::ID matId) 
+            const BSComponentDB2::ID matId) const
 		{
 			const auto parentList = GetParentList(matId);
 			for (auto parentIt = parentList.begin() + 1; parentIt != parentList.end(); ++parentIt) {
@@ -261,16 +252,13 @@ namespace cdb {
 		}
 
 		void CreateMaterialJson(nlohmann::json& matJson, const BSComponentDB2::ID matId,
-			const std::unordered_map<uint32_t, std::string>& idToPath)
+            const std::unordered_map<uint32_t, std::string>& idToPath) const
 		{
 			ObjectQueue objectQueue;
 			matJson["Version"] = 1;
 			auto& objects = matJson["Objects"];
 			auto& matObject = objects.emplace_back();
-			//objectQueue.dbIds.emplace_back(matId.Value);
 			objectQueue.idMap.emplace(matId.Value, 0);
-			//matObject["ID"] = std::to_string(objectQueue.nextId++);
-			//matObject["ID"] = "<this>";
 			GetFullJson(matId, matObject);
 			SetMaterialParent(matObject, idToPath, matId);
 			for (auto& component : matObject["Components"]) {
@@ -344,31 +332,7 @@ namespace cdb {
 			}
 		}
 
-		void GetComponentIndexesForMaterial(BSComponentDB2::ID id, TestStruct& tester) {
-			const auto parentList = GetParentList(id);
-			for (auto idIt = parentList.rbegin(); idIt != parentList.rend(); ++idIt) {
-				if (tester.objectSet.emplace(idIt->Value).second) {
-					auto& components = GetComponents(*idIt);
-					for (auto& ref : components) {
-						const auto& type = GetType(ref.component.Type);
-						if (std::find(idTypes.begin(), idTypes.end(), type.Class) != idTypes.end()) {
-							const std::string& idStr = componentJsons.at(ref.idx)["Data"]["ID"];
-							uint32_t objectId = std::stoul(idStr);
-							GetComponentIndexesForMaterial({ objectId }, tester);
-						}
-						tester.componentSet.emplace(ref.idx);
-					}
-					auto& edges = GetEdges(*idIt);
-					for (auto& ref : edges) {
-						if (tester.edgeSet.emplace(ref.idx).second) {
-							GetComponentIndexesForMaterial( ref.edge.TargetID , tester);
-						}
-					}
-				}
-			}
-		}
-
-		void ComposeJsons(nlohmann::json& lhs, const nlohmann::json& rhs) {
+        void ComposeJsons(nlohmann::json& lhs, const nlohmann::json& rhs) const {
 			if (rhs.is_object()) {
 				if (rhs.empty()) {
 					lhs = nlohmann::json::object();
@@ -741,8 +705,8 @@ namespace cdb {
 				std::string className;
 				*this >> className;
 				idx.ComponentTypes.emplace_back(key, BSComponentDB2::DBFileIndex::ComponentTypeInfo{
-					 std::move(className), val.version, val.isEmpty
-					});
+					std::move(className), val.version, val.isEmpty
+				});
 				Read();
 			}
 			return *this >> idx.Objects >> idx.Components >> idx.Edges;
@@ -886,7 +850,6 @@ namespace cdb {
 			//});
 
 			headerChunkSize = 3 + typeSize;
-			//chunksRemaining = chunkSize - headerChunkSize;
 		}
 
 		bool ReadHeader(Manager& header) {
@@ -945,7 +908,6 @@ namespace cdb {
 			for (uint32_t i = 0; i < header.fileIndex.Edges.size(); ++i) {
 				const auto& edge = header.fileIndex.Edges.at(i);
 				header.edgeMap[edge.SourceID.Value].emplace_back(edge, i);
-				//header.edgeMap[edge.TargetID.Value].emplace_back(edge, i);
 			}
 
 			for (const auto& object : header.fileIndex.Objects) {
@@ -954,11 +916,6 @@ namespace cdb {
 				}
 			}
 
-			//for (const auto& type : classes) {
-			//	nlohmann::json classJson;
-			//	GetDefaultType(classJson, { type.name.data });
-			//	header.classJsons.emplace(GetString(type.name), std::move(classJson));
-			//}
 			return true;
 		}
 
@@ -1008,32 +965,10 @@ namespace cdb {
 			}
 		}
 
-		//static constexpr std::array typeMapKeys{
-		//	"BSResource::ID",
-		//	"BSComponentDB2::ID",
-		//};
-
-		//enum TypeMap : uint32_t {
-		//	BSResourceID = 0,
-		//	BSComponentDB2ID,
-		//	Npos = 0xFFFFFFFFu,
-		//};
-
-		//uint32_t GetTypeEnum(const TypeRef ref) {
-		//	const char* typeName = stringTable.data() + ref.data;
-		//	for (uint32_t i = 0; i < typeMapKeys.size(); ++i) {
-		//		if (_stricmp(typeMapKeys[i], typeName) == 0)
-		//			return i;
-		//	}
-		//	return Npos;
-		//}
-
 		void ReadMap(nlohmann::json& value, bool isDiff) {
 			Map map = GetMap();
 
-			//value = nlohmann::json::object();
 			value["Type"] = "<collection>";
-			//value["Type"] = "std::map";
 			const char* elementTypeName = GetString(map.value);
 			value["ElementType"] = "StdMapType::Pair";
 			auto& dataValue = value["Data"];
@@ -1096,11 +1031,7 @@ namespace cdb {
 			{
 				TypeRef ref;
 				*this >> ref;
-				//value["Type"] = GetString(ref);
-				//auto& dataValue = value["Data"];
-				//ReadType(dataValue, ref, chunk.IsDiff());
 				ReadType(value, ref, chunk.IsDiff());
-				//_rootSize++;
 				break;
 			}
 			case Chunk::USER:
@@ -1111,16 +1042,11 @@ namespace cdb {
 				User user;
 				*this >> user;
 
-				//auto&& cast = std::move(userQueue.front());
-				//userQueue.pop();
 				auto&& cast = std::move(userQueue.back());
 				userQueue.pop_back();
 
 				ReadType(cast.value, user.casted, chunk.IsDiff(), true);
 				*this >> userValue;
-				//if (userValue != 0) {
-				//	Log("User value was not 0, {}, pos {:08X}", userValue, Pos());
-				//}
 				break;
 			}
 			case Chunk::LIST:
@@ -1129,8 +1055,6 @@ namespace cdb {
 				if (chunkQueue.empty())
 					Error("No chunk found for {}", chunk.GetSig());
 
-				//auto&& nextChunk = std::move(chunkQueue.front());
-				//chunkQueue.pop();
 				auto&& nextChunk = std::move(chunkQueue.back());
 				chunkQueue.pop_back();
 
@@ -1166,8 +1090,6 @@ namespace cdb {
 				*this >> ref;
 				if (ref.IsBuiltin()) {
 					if (ref == TypeRef::Null) {
-						//dataValue["Data"] = nullptr;
-						//dataValue["Type"] = "<missing_type>";
 						value = nullptr;
 					}
 					else {
@@ -1182,7 +1104,6 @@ namespace cdb {
 					auto& dataValue = value["Data"];
 					value["Type"] = "<ref>";
 					if (type.IsUser()) {
-						//userQueue.emplace(dataValue, ref);
 						userQueue.emplace_back(dataValue, ref);
 					}
 					else {
@@ -1200,7 +1121,6 @@ namespace cdb {
 			case TypeRef::Int64: value = ReadString<int64_t>(); break;
 			case TypeRef::UInt64: value = ReadString<uint64_t>(); break;
 			case TypeRef::Bool: value = Read<bool>() ? "true" : "false"; break;
-			//case TypeRef::Bool: value = Read<bool>() ? true : false; break;
 			case TypeRef::Float: value = ReadString<float>(); break;
 			case TypeRef::Double: value = ReadString<double>(); break;
 			default:
@@ -1223,21 +1143,17 @@ namespace cdb {
 					if (!type)
 						Error("Type not found: {:08X}", ref.data);
 					if (!isCast && type.IsUser()) {
-						//userQueue.emplace(value, ref);
 						userQueue.emplace_back(value, ref);
 					}
 					else {
-						//auto& classValue = value[GetString(type.name)];
 						value["Type"] = GetString(type.name);
 						auto& dataValue = value["Data"];
 						dataValue = nlohmann::json::object();
 
 						if (!isDiff) {
 							for (auto& field : type.fields) {
-								//auto& fieldValue = value[GetString(field.name)];
 								auto& fieldValue = dataValue[GetString(field.name)];
 								if (field.typeId.IsChunk()) {
-									//chunkQueue.emplace(fieldValue, isDiff);
 									chunkQueue.emplace_back(fieldValue, isDiff);
 								}
 								else {
@@ -1249,10 +1165,8 @@ namespace cdb {
 							uint16_t fieldIdx = Read<uint16_t>();
 							while (fieldIdx != 0xFFFFu) {
 								auto& field = type.fields.at(fieldIdx);
-								//auto& fieldValue = value[GetString(field.name)];
 								auto& fieldValue = dataValue[GetString(field.name)];
 								if (field.typeId.IsChunk()) {
-									//chunkQueue.emplace(fieldValue, isDiff);
 									chunkQueue.emplace_back(fieldValue, isDiff);
 								}
 								else {
@@ -1261,10 +1175,6 @@ namespace cdb {
 								*this >> fieldIdx;
 							}
 						}
-						
-						//for (auto&& chunk : newChunks) {
-						//	chunkQueue.emplace(std::move(chunk));
-						//}
 					}
 				}
 			}
@@ -1631,108 +1541,6 @@ namespace cdb {
 			*this << Chunk{ 'TSIL', 0x8u + 0xCu * (uint32_t)manager.fileIndex.Edges.size() }
 				<< GetTypeOffset("BSComponentDB2::DBFileIndex::EdgeInfo") << (uint32_t)manager.fileIndex.Edges.size()
 				<< manager.fileIndex.Edges;
-		}
-
-		void WriteTestDatabase(const Manager& manager, const TestStruct& tester) {
-			*this << Chunk{ 'TJBO', 0x7u + (uint32_t)manager.database.BuildVersion.size() }
-			<< GetTypeOffset("BSMaterial::Internal::CompiledDB") << manager.database.BuildVersion;
-
-			const uint32_t hashmapSize = 1;
-			*this << Chunk{ 'CPAM', 0xCu + 0x14u * hashmapSize }
-				<< GetTypeOffset("BSResource::ID") << TypeRef::UInt64 << hashmapSize;
-				//<< manager.database.HashMap;
-
-			//for (auto& info : creates) {
-			//	*this << info.id << info.hash;
-			//}
-
-			*this << tester.resourceId << tester.hash;
-
-			*this << Chunk{ 'TSIL', 0x8u } << TypeRef::Null << 0u
-				<< Chunk{ 'TSIL', 0x8u } << TypeRef::Null << 0u
-				<< Chunk{ 'TJBO', 0x5u } << GetTypeOffset("BSComponentDB2::DBFileIndex") << manager.fileIndex.Optimized
-				<< Chunk{ 'CPAM', 0xCu + 0x5u * (uint32_t)manager.fileIndex.ComponentTypes.size() }
-				<< TypeRef::UInt16 << GetTypeOffset("BSComponentDB2::DBFileIndex::ComponentTypeInfo")
-				<< (uint32_t)manager.fileIndex.ComponentTypes.size();
-
-			for (auto& [key, value] : manager.fileIndex.ComponentTypes) {
-				*this << key << value.Version << value.IsEmpty;
-			}
-			auto classReferenceType = GetTypeOffset("ClassReference");
-			for (auto& [key, value] : manager.fileIndex.ComponentTypes) {
-				*this << Chunk{ 'RESU', 0xF + (uint32_t)value.Class.size() }
-				<< classReferenceType << TypeRef::String << value.Class << 0u;
-			}
-
-			//uint32_t objectsSize = (uint32_t)manager.fileIndex.Objects.size();
-			uint32_t objectsSize = 0;
-			//for (auto& info : creates) {
-			//	objectsSize += (uint32_t)info.json["Objects"].size();
-			//}
-			objectsSize += (uint32_t)tester.objectSet.size();
-
-			*this << Chunk{ 'TSIL', 0x8u + 0x15 * objectsSize }
-				<< GetTypeOffset("BSComponentDB2::DBFileIndex::ObjectInfo") << objectsSize;
-				//<< manager.fileIndex.Objects;
-
-			//uint32_t objectId = manager.nextObjectId;
-			//for (auto& info : creates) {
-			//	auto& objects = info.json["Objects"];
-			//	for (size_t i = 0; i < objects.size(); ++i) {
-			//		const auto& object = objects[i];
-			//		const std::string& idString = object["ID"];
-			//		uint32_t objectId = std::stoul(idString);
-			//		auto resourceId = i == 0 ? info.id : GetResourceIdFromPath(idString);
-			//		*this << BSComponentDB2::DBFileIndex::ObjectInfo{ resourceId, objectId, 0, false };
-			//	}
-			//}
-
-			for (auto& objectId : tester.objectSet) {
-				//*this << manager.fileIndex.Objects.at(objectId);
-				*this << manager.GetObject({ objectId });
-			}
-
-			//uint32_t componentsSize = (uint32_t)manager.fileIndex.Components.size();
-			//uint32_t componentsSize = 0;
-			//for (auto& info : creates) {
-			//	auto& objects = info.json["Objects"];
-			//	for (auto& object : objects) {
-			//		componentsSize += (uint32_t)object["Components"].size();
-			//	}
-			//}
-			uint32_t componentsSize = (uint32_t)tester.componentSet.size();
-			*this << Chunk{ 'TSIL', 0x8u + 0x8u * componentsSize }
-				<< GetTypeOffset("BSComponentDB2::DBFileIndex::ComponentInfo") << componentsSize;
-				//<< manager.fileIndex.Components;
-
-			//objectId = manager.nextObjectId;
-			//for (auto& info : creates) {
-			//	auto& objects = info.json["Objects"];
-			//	for (auto& object : objects) {
-			//		const std::string& idString = object["ID"];
-			//		uint32_t objectId = std::stoul(idString);
-			//		auto& components = object["Components"];
-			//		for (auto& component : components) {
-			//			uint16_t index = component["Index"];
-			//			const std::string& typeName = component["Type"];
-			//			uint16_t type = manager.GetTypeIndex(typeName.c_str());
-			//			*this << BSComponentDB2::DBFileIndex::ComponentInfo{ objectId, index, type };
-			//		}
-			//		//objectId++;
-			//	}
-			//}
-			for (auto& componentIdx : tester.componentSet) {
-				*this << manager.fileIndex.Components.at(componentIdx);
-			}
-
-			uint32_t edgesSize = 0;
-			edgesSize += (uint32_t)tester.edgeSet.size();
-			*this << Chunk{ 'TSIL', 0x8u + 0xCu * edgesSize }
-				<< GetTypeOffset("BSComponentDB2::DBFileIndex::EdgeInfo") << edgesSize;
-				//<< manager.fileIndex.Edges;
-			for (auto& edgeIdx : tester.edgeSet) {
-				*this << manager.fileIndex.Edges.at(edgeIdx);
-			}
 		}
 
 		void WriteChunk(Reader& reader) {

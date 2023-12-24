@@ -1,0 +1,7 @@
+[submodule "bsa"]
+	path = bsa
+	url = https://github.com/Ryan-rsm-McKenzie/bsa.git
+	branch = starfield
+[submodule "nifly"]
+	path = nifly
+	url = https://github.com/ousnius/nifly.git

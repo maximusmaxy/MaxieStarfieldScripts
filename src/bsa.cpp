@@ -1,6 +1,6 @@
 #include "bsa.h"
 
-#include "bsa/fo4.hpp"
+#include <bsa/fo4.hpp>
 
 #include <string_view>
 #include <span>

@@ -73,12 +73,12 @@ bool RecompileDatabase(const PathInfo& paths) {
         }
     }
 
-    TestStruct tester;
-    tester.hash = 56916906640545u;
-    tester.resourceId = GetResourceIdFromPath("materials\\actors\\human\\faces\\female_default.mat");
-    auto testerIt = header.resourceToDb.find(tester.resourceId);
-    tester.matId = testerIt != header.resourceToDb.end() ? testerIt->second : BSComponentDB2::ID{ 0 };
-    header.GetComponentIndexesForMaterial(tester.matId, tester);
+    //TestStruct tester;
+    //tester.hash = 56916906640545u;
+    //tester.resourceId = GetResourceIdFromPath("materials\\actors\\human\\faces\\female_default.mat");
+    //auto testerIt = header.resourceToDb.find(tester.resourceId);
+    //tester.matId = testerIt != header.resourceToDb.end() ? testerIt->second : BSComponentDB2::ID{ 0 };
+    //header.GetComponentIndexesForMaterial(tester.matId, tester);
 
     bool anyUpdated = false;
     std::unordered_map<uint32_t, nlohmann::json> updates;
@@ -166,12 +166,13 @@ bool RecompileDatabase(const PathInfo& paths) {
         //        }
         //    }
         //}
-        uint32_t chunkSize = uint32_t(in.HeaderChunkSize());
-        for (auto& componentIdx : tester.componentSet) {
-            const auto& component = header.componentJsons.at(componentIdx);
-            chunkSize++;
-            in.GetJsonChunkCount(component, chunkSize);
-        }
+
+        //uint32_t chunkSize = uint32_t(in.HeaderChunkSize());
+        //for (auto& componentIdx : tester.componentSet) {
+        //    const auto& component = header.componentJsons.at(componentIdx);
+        //    chunkSize++;
+        //    in.GetJsonChunkCount(component, chunkSize);
+        //}
 
         Writer::Header outHeader{
             in.Version(),
@@ -205,23 +206,23 @@ bool RecompileDatabase(const PathInfo& paths) {
             }
         }
         else {
-            out.WriteTestDatabase(header, tester);
-            for (uint32_t i = 0; i < header.fileIndex.Components.size(); ++i) {
-                if (tester.componentSet.contains(i))
-                    out.WriteChunk(in);
-                else
-                    in.SkipNextObject();
-            }
+            //out.WriteTestDatabase(header, tester);
+            //for (uint32_t i = 0; i < header.fileIndex.Components.size(); ++i) {
+            //    if (tester.componentSet.contains(i))
+            //        out.WriteChunk(in);
+            //    else
+            //        in.SkipNextObject();
+            //}
 
-            nlohmann::json testdump;
-            for (auto& componentIdx : tester.componentSet) {
-                testdump.emplace_back() = header.componentJsons.at(componentIdx);
-            }
+            //nlohmann::json testdump;
+            //for (auto& componentIdx : tester.componentSet) {
+            //    testdump.emplace_back() = header.componentJsons.at(componentIdx);
+            //}
 
-            std::ofstream teststream("testdump.json", std::ios::out | std::ios::binary);
-            if (teststream.fail())
-                Log("lol");
-            teststream << testdump.dump(2);
+            //std::ofstream teststream("testdump.json", std::ios::out | std::ios::binary);
+            //if (teststream.fail())
+            //    Log("lol");
+            //teststream << testdump.dump(2);
         }
     }
 
@@ -238,7 +239,7 @@ int main(int argc, char** argv) {
         //.cdbOut = std::filesystem::path(materialsFolder).append("materialsbeta.cdb").string(),
         .cdbOut = std::filesystem::path(materialsFolder).append("materialsbeta_test.cdb").string(),
         .forceUpdate = true,
-        .test = true,
+        //.test = true,
     };
 
     if (!RecompileDatabase(paths))

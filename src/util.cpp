@@ -1,11 +1,8 @@
 #include "util.h"
 
 #include <algorithm>
+#include <filesystem>
 #include "types.h"
-
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include "windows.h"
 
 bool HasExtension(const std::string& str, const char* ext) {
 	const auto last = str.find_last_of('.');
@@ -24,6 +21,8 @@ bool CreateDirectories(const std::string& path) {
 }
 
 void SanitizePrefixedPath(std::string& path, const std::string& prefix) {
+    std::replace(path.begin(), path.end(), '/', '\\');
+
 	constexpr auto lowerBackslashMap = GetLowerBackslashMap();
 	const auto it = std::search(path.begin(), path.end(), prefix.begin(), prefix.end(), [](const char lhs, const char rhs) {
 		return lowerBackslashMap[lhs] == lowerBackslashMap[rhs];
@@ -34,7 +33,7 @@ void SanitizePrefixedPath(std::string& path, const std::string& prefix) {
 	}
 	else if (it == path.end()) {
 		const auto front = path.front();
-		if (front == '/' || front == '\\') {
+        if (front == '\\') {
 			path.insert(0, prefix);
 		}
 		else {
@@ -44,21 +43,4 @@ void SanitizePrefixedPath(std::string& path, const std::string& prefix) {
 	else {
 		path.erase(path.begin(), it);
 	}
-}
-
-std::filesystem::path GetRegistryPath(const wchar_t* subkey, const wchar_t* value) {
-	DWORD pathSize = MAX_PATH;
-	std::wstring pathBuffer(pathSize, 0);
-
-	auto status = RegGetValueW(
-		HKEY_LOCAL_MACHINE,
-		subkey,
-		value,
-		RRF_RT_REG_SZ,
-		nullptr,
-		(void*)pathBuffer.data(),
-		&pathSize
-	);
-
-	return std::filesystem::path(status == ERROR_SUCCESS ? pathBuffer.c_str() : L"");
 }

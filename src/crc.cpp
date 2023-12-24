@@ -276,15 +276,6 @@ uint32_t GetCrc(const std::string_view sv) {
 	return result;
 }
 
-uint64_t GetCrc64(const std::string_view sv) {
-	uint64_t result = 0;
-	constexpr auto transform = GetLowerBackslashMap();
-	for (const auto c : sv) {
-		result = crcMap[(uint8_t)(transform[c] ^ result)] ^ (result >> 8);
-	}
-	return result;
-}
-
 uint32_t GetExtension(const std::string& path, size_t dotPos) {
 	uint32_t result = 0;
 
@@ -344,10 +335,6 @@ uint64_t GetHashFrom64(uintptr_t ptr) {
 		hash = mod * (chars[i] ^ hash);
 	}
 	return hash;
-}
-
-uint64_t GetHashFromPath(const std::string& path) {
-	return GetCrc64(std::string_view{ path });
 }
 
 std::string GetFormatedResourceId(const BSResource::ID& id) {

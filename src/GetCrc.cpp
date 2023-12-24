@@ -1,6 +1,8 @@
 #include "util.h"
 #include "crc.h"
 
+#include <filesystem>
+
 void LogCrc(const std::string& path) {
 	if (HasExtension(path, ".mat")) {
 		std::string sanitizedPath(path);
